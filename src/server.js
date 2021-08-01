@@ -20,8 +20,8 @@
 import express from 'express'
 import * as redis from 'redis'
 import MongoClient from 'mongodb'
-import { FailsJWTSigner } from 'fails-components-security'
-import { FailsConfig } from 'fails-components-config'
+import { FailsJWTSigner } from '@martenrichter/fails-components-security'
+import { FailsConfig } from '@martenrichter/fails-components-config'
 
 // import { v4 as uuidv4, validate as isUUID } from 'uuid';
 import { LtiHandler } from './ltihandler.js'
