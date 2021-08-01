@@ -17,58 +17,67 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import express from "express";
-import * as redis from "redis";
-import MongoClient from 'mongodb';
-import { FailsJWTSigner} from 'fails-components-security';
-import {FailsConfig } from 'fails-components-config';
+import express from 'express'
+import * as redis from 'redis'
+import MongoClient from 'mongodb'
+import { FailsJWTSigner } from 'fails-components-security'
+import { FailsConfig } from 'fails-components-config'
 
-//import { v4 as uuidv4, validate as isUUID } from 'uuid';
-import { LtiHandler } from './ltihandler.js';
+// import { v4 as uuidv4, validate as isUUID } from 'uuid';
+import { LtiHandler } from './ltihandler.js'
 
+const initServer = async () => {
+  const cfg = new FailsConfig()
+  const redisclient = redis.createClient({
+    detect_buffers: true /* required by notescreen connection */
+  })
 
+  const mongoclient = await MongoClient.connect(cfg.getMongoURL(), {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  })
+  const mongodb = mongoclient.db(cfg.getMongoDB())
 
-let cfg = new FailsConfig();
-const redisclient = redis.createClient({ detect_buffers: true /* required by notescreen connection*/ });
+  const appsecurity = new FailsJWTSigner({
+    redis: redisclient,
+    type: 'app',
+    expiresIn: '1m',
+    secret: cfg.getKeysSecret()
+  })
 
-let mongoclient = await MongoClient.connect(cfg.getMongoURL(), { useNewUrlParser: true, useUnifiedTopology: true });
-let mongodb = mongoclient.db(cfg.getMongoDB());
+  const lmsList = cfg.getLmsList()
 
-let appsecurity = new FailsJWTSigner({ redis: redisclient, type: 'app', expiresIn: "1m", secret: cfg.getKeysSecret() });
+  const ltihandler = new LtiHandler({
+    lmslist: lmsList,
+    signJwt: appsecurity.signToken,
+    redis: redisclient,
+    mongo: mongodb,
+    basefailsurl: cfg.getURL('appweb')
+  })
 
+  const app = express()
 
-const lms_list = cfg.getLmsList();
+  // may be move the io also inside the object, on the other hand, I can not insert middleware anymore
 
-var ltihandler = new LtiHandler({
-  lmslist: lms_list,
-  signJwt: appsecurity.signToken,
-  redis: redisclient, mongo: mongodb, basefailsurl: cfg.getURL('appweb')
-});
-
-var app = express();
-
-// may be move the io also inside the object, on the other hand, I can not insert middleware anymore
-
-/*var ioIns = new Server(server,{cors: {
+  /* var ioIns = new Server(server,{cors: {
   origin: "http://192.168.1.116:3000",
   methods: ["GET", "POST"],
  // credentials: true
-}});*/
+}}); */
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+  app.use(express.urlencoded({ extended: true }))
+  app.use(express.json())
 
-console.log("debug path ",cfg.getSPath('lti') + "/launch")
-app.all(cfg.getSPath('lti') + "/launch", (req, res) => {
-  return ltihandler.handleLaunch(req, res);
-});
+  console.log('debug path ', cfg.getSPath('lti') + '/launch')
+  app.all(cfg.getSPath('lti') + '/launch', (req, res) => {
+    return ltihandler.handleLaunch(req, res)
+  })
 
-app.all(cfg.getSPath('lti') + "/login", (req, res) => {
-  return ltihandler.handleLogin(req, res);
-});
+  app.all(cfg.getSPath('lti') + '/login', (req, res) => {
+    return ltihandler.handleLogin(req, res)
+  })
 
-
-/*
+  /*
 // old test code?
 app.all("/auth",function(req,res,next) {
   // console.log("Request:", req.token);
@@ -79,10 +88,13 @@ app.all("/auth",function(req,res,next) {
  });
  */
 
-
-
-
-app.listen(cfg.getPort('lti'), cfg.getHost(), function () {
-  console.log('Failsserver lti handler listening port:', cfg.getPort('lti'), ' host:', cfg.getHost());
-});
-
+  app.listen(cfg.getPort('lti'), cfg.getHost(), function () {
+    console.log(
+      'Failsserver lti handler listening port:',
+      cfg.getPort('lti'),
+      ' host:',
+      cfg.getHost()
+    )
+  })
+}
+initServer()
