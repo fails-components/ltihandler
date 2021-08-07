@@ -28,7 +28,7 @@ import { LtiHandler } from './ltihandler.js'
 
 const initServer = async () => {
   const cfg = new FailsConfig()
-  const redisclient = redis.createClient({
+  const redisclient = redis.createClient(cfg.redisPort(), cfg.redisHost(), {
     detect_buffers: true /* required by notescreen connection */
   })
 
@@ -88,10 +88,12 @@ app.all("/auth",function(req,res,next) {
  });
  */
 
-  app.listen(cfg.getPort('lti'), cfg.getHost(), function () {
+  let port = cfg.getPort('lti')
+  if (port === 443) port = 8080 // we are in production mode inside a container
+  app.listen(port, cfg.getHost(), function () {
     console.log(
       'Failsserver lti handler listening port:',
-      cfg.getPort('lti'),
+      port,
       ' host:',
       cfg.getHost()
     )
