@@ -269,9 +269,7 @@ export class LtiHandler {
           } // five times 5 minutes should be enough
           const jwttoken = await this.signJwt(token)
 
-          return res.redirect(
-            this.basefailsurl + '/index.html' + '?token=' + jwttoken
-          )
+          return res.redirect(this.basefailsurl + '/' + '?token=' + jwttoken)
         }
 
         // console.log("decoded token",decodedToken.payload);
