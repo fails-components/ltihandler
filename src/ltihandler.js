@@ -415,6 +415,7 @@ export class LtiHandler {
       toinsert.lms.resource_id = lms.resource_id
       if (lms.course_id) toinsert.lms.course_id = lms.course_id
       if (lms.platform_id) toinsert.lms.platform_id = lms.platform_id
+      if (lms.deploy_id) toinsert.lms.deploy_id = lms.deploy_id
       if (linfo.lecturetitle) toinsert.title = linfo.lecturetitle
       if (linfo.coursetitle) toinsert.coursetitle = linfo.coursetitle
       lectureuuid = uuidv4()
@@ -438,13 +439,16 @@ export class LtiHandler {
       const toupdate = {}
       if (
         lecturedoc.lms.course_id !== lms.course_id ||
-        lecturedoc.lms.platform_id !== lms.platform_id
+        lecturedoc.lms.platform_id !== lms.platform_id ||
+        lecturedoc.lms.deploy_id !== lms.deploy_id
       )
         toupdate.lms = {}
       if (lecturedoc.lms.course_id !== lms.course_id)
         toupdate.lms.course_id = lms.course_id
       if (lecturedoc.lms.platform_id !== lms.platform_id)
         toupdate.lms.platform_id = lms.platform_id
+      if (lecturedoc.lms.deploy_id !== lms.deploy_id)
+        toupdate.lms.deploy_id = lms.deploy_id
       if (lecturedoc.title !== linfo.lecturetitle)
         toupdate.title = linfo.lecturetitle
       if (lecturedoc.coursetitle !== linfo.coursetitle)
