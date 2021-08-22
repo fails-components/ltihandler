@@ -20,6 +20,7 @@
 import { v4 as uuidv4, validate } from 'uuid'
 import url from 'fast-url-parser'
 import jwt from 'jsonwebtoken'
+import jwtexpress from 'express-jwt'
 import got from 'got'
 import Jwk from 'rasha'
 import moment from 'moment'
@@ -494,5 +495,107 @@ export class LtiHandler {
     // if (coursetitle) retobj.coursetitle=coursetitle;
 
     return retobj
+  }
+
+  maintenanceExpress() {
+    const secretCallback = async (req, payload, done) => {
+      const keyid = payload.kid
+      if (!keyid) return done(new Error('no valid kid!'))
+
+      const platform = this.lmslist[payload.iss]
+      if (!platform) return done(new Error('platform not registered/supported'))
+
+      const keyinfo = await got.get(platform.keyset_url).json()
+      const keys = keyinfo.keys
+      if (!keys) return done(new Error('Keyset not found'))
+
+      const jwk = keys.find((key) => {
+        return key.kid === keyid
+      })
+      if (!jwk) return done(new Error('key not found'))
+      done(null, jwk)
+    }
+
+    return jwtexpress({
+      secret: secretCallback,
+      algorithms: ['ES512'],
+      requestProperty: 'token'
+    })
+  }
+
+  async handleGetUser(req, res) {
+    const userscol = this.mongo.collection('users')
+    const orquery = []
+
+    if (!req.token) res.status(401).send('malformed request')
+    if (
+      req.body.username &&
+      req.body.username.match(/^[0-9a-zA-Z]+$/) &&
+      typeof req.body.username === 'string'
+    )
+      orquery.push({ 'lms.username': req.body.username })
+    if (req.body.email && typeof req.body.email === 'string')
+      orquery.push({ email: req.body.email })
+
+    if (orquery.length === 0) return res.status(401).send('malformed request')
+    if (!req.token.iss) return res.status(401).send('malformed request')
+
+    try {
+      const user = await userscol.findOne({
+        $and: [{ $or: orquery }, { 'lms.iss': req.token.iss }]
+      })
+      if (!user) res.status(404).send('user not found')
+      if (user.uuid) res.status(200).json({ uuid: user.uuid })
+      else res.status(404).send('uuid not found')
+    } catch (error) {
+      console.log('handleGetUser error', error)
+      return res.status(500).send('get user error')
+    }
+  }
+
+  async handleDeleteUser(req, res) {
+    if (!validate(req.body.uuid))
+      return res.status(401).send('malformed request')
+    const useruuid = req.body.uuid
+    try {
+      const userscol = this.mongo.collection('users')
+      const lecturescol = this.mongo.collection('lectures')
+
+      const deleted = await userscol.deleteMany({ uuid: useruuid })
+
+      const mods = await lecturescol.updateMany(
+        { owners: useruuid },
+        { $pull: { owners: useruuid } }
+      )
+
+      res.status(200).json({
+        deletedusers: deleted.deletedCount,
+        modifieddocs: mods.modifiedCount
+      })
+    } catch (error) {
+      console.log('handleDeleteUser error', error)
+      return res.status(500).send('delete user error')
+    }
+  }
+
+  async handleDeleteCourse(req, res) {
+    if (!req.token) res.status(401).send('malformed request')
+    if (!req.token.iss) return res.status(401).send('malformed request')
+    if (!req.body.courseid) return res.status(401).send('malformed request')
+    const courseid = Number(req.body.courseid)
+    if (Number.isNaN(courseid)) return res.status(401).send('malformed request')
+    try {
+      const lecturescol = this.mongo.collection('lectures')
+      const mods = await lecturescol.updateMany(
+        { 'lms.iss': req.token.iss, 'lms.course_id': courseid.toString() },
+        { $rename: { 'lms.resource_id': 'lms.resource_id_deleted' } }
+      )
+      res.status(200).json({
+        modifieddocs: mods.modifiedCount
+      })
+    } catch (error) {
+      console.log('handleDeleteCourse error', error)
+      return res.status(500).send('delete course error')
+    }
   }
 }

@@ -77,6 +77,23 @@ const initServer = async () => {
     return ltihandler.handleLogin(req, res)
   })
 
+  app.use(
+    cfg.getSPath('lti') + '/maintenance/',
+    ltihandler.maintenanceExpress()
+  ) // secure maintenance routes
+
+  app.get(cfg.getSPath('lti') + '/maintenance/user', (req, res) => {
+    return ltihandler.handleGetUser(req, res)
+  })
+
+  app.delete(cfg.getSPath('lti') + '/maintenance/user', (req, res) => {
+    return ltihandler.handleDeleteUser(req, res)
+  })
+
+  app.delete(cfg.getSPath('lti') + '/maintenance/course', (req, res) => {
+    return ltihandler.handleDeleteCourse(req, res)
+  })
+
   /*
 // old test code?
 app.all("/auth",function(req,res,next) {
