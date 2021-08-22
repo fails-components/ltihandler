@@ -52,7 +52,8 @@ const initServer = async () => {
     signJwt: appsecurity.signToken,
     redis: redisclient,
     mongo: mongodb,
-    basefailsurl: cfg.getURL('appweb')
+    basefailsurl: cfg.getURL('appweb'),
+    coursewhitelist: cfg.courseWhitelist()
   })
 
   const app = express()

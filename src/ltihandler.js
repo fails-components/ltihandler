@@ -32,6 +32,7 @@ export class LtiHandler {
     this.mongo = args.mongo
     this.signJwt = args.signJwt
     this.basefailsurl = args.basefailsurl
+    this.coursewhitelist = args.coursewhitelist
   }
 
   handleLogin(req, res) {
@@ -200,6 +201,17 @@ export class LtiHandler {
               payload['https://purl.imsglobal.org/spec/lti/claim/resource_link']
                 .id // use for identification
           }
+          if (
+            this.coursewhitelist &&
+            (!lmscontext.course_id ||
+              this.coursewhitelist.indexOf(lmscontext.course_id) === -1)
+          ) {
+            return res.status(400).send({
+              status: 400,
+              error: 'course ' + lmscontext.course_id + ' not on whitelist'
+            })
+          }
+
           if (
             !lmscontext.deploy_id ||
             !lmscontext.resource_id ||
