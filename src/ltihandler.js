@@ -361,7 +361,7 @@ export class LtiHandler {
           userdoc.lms.sub !== userinfo.lmssub ||
           userdoc.lms.username !== userinfo.lmsusername)
       ) {
-        const updatelms = {}
+        const updatelms = userdoc.lms
         if (userinfo.lmssub) updatelms.sub = userinfo.lmssub
         if (userinfo.lmsusername) updatelms.username = userinfo.lmsusername
         toupdate.lms = updatelms
