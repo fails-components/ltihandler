@@ -455,7 +455,7 @@ export class LtiHandler {
         lecturedoc.lms.platform_id !== lms.platform_id ||
         lecturedoc.lms.deploy_id !== lms.deploy_id
       )
-        toupdate.lms = {}
+        toupdate.lms = lecturedoc.lms
       if (lecturedoc.lms.course_id !== lms.course_id)
         toupdate.lms.course_id = lms.course_id
       if (lecturedoc.lms.platform_id !== lms.platform_id)
