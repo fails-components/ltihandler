@@ -478,7 +478,7 @@ export class LtiHandler {
         const updateops = {}
         if (Object.keys(toupdate).length > 0) updateops.$set = toupdate
         if (!containsowner && isowner) {
-          updateops.$addToSet = { owner: args.owner }
+          updateops.$addToSet = { owners: args.owner }
           if (args.ownerdisplayname)
             updateops.$push = { ownersdisplaynames: args.ownerdisplayname }
         }
