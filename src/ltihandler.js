@@ -542,7 +542,7 @@ export class LtiHandler {
     if (!req.token) res.status(401).send('malformed request')
     if (
       req.body.username &&
-      req.body.username.match(/^[0-9a-zA-Z]+$/) &&
+      req.body.username.match(/^[0-9a-zA-Z._-]+$/) &&
       typeof req.body.username === 'string'
     )
       orquery.push({ 'lms.username': req.body.username })
