@@ -257,7 +257,7 @@ export class LtiHandler {
           // we to identify lecture and context, which can be course or the lecture
           // and the user !!
           const failsuser = await this.identifyCreateUser(userinfo)
-          console.log('failsuser', failsuser)
+          // console.log('failsuser', failsuser)
           const courseinfo = { lms: lmscontext, linfo: lectureinfo }
           if (role.includes('instructor')) {
             courseinfo.owner = failsuser.useruuid // claim ownership
@@ -271,7 +271,7 @@ export class LtiHandler {
             return res
               .status(400)
               .send({ status: 400, error: 'resource can not be identified' })
-          console.log('failscourse', failscourse)
+          // console.log('failscourse', failscourse)
 
           const token = {
             course: failscourse,
@@ -378,7 +378,7 @@ export class LtiHandler {
           (userdoc.lastlogin &&
             moment(userdoc.lastlogin).isBefore(moment().subtract(3, 'days')))
         ) {
-          console.log('renew lastlogin')
+          // console.log('renew lastlogin')
           userscol.updateOne(
             { uuid: useruuid },
             { $currentDate: { lastlogin: true } }
@@ -413,7 +413,7 @@ export class LtiHandler {
     // TODO add course stuff
     // console.log("andquery", andquery);
     const lecturedoc = await lecturescol.findOne({ $and: andquery })
-    console.log('lecturedoc', lecturedoc)
+    // console.log('lecturedoc', lecturedoc)
 
     let lectureuuid = null
 
