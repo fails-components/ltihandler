@@ -100,7 +100,9 @@ export class LtiHandler {
         return res.status(400).send({
           status: 400,
           error: 'Bad Request',
-          details: { message: 'platform not registered/supported' }
+          details: { message: 'platform'
+                    + decodedToken.payload.iss
+                    + ' not registered/supported' }
         })
 
       const keyinfo = await got.get(platform.keyset_url).json()
