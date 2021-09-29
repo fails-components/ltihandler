@@ -33,6 +33,8 @@ export class LtiHandler {
     this.signJwt = args.signJwt
     this.basefailsurl = args.basefailsurl
     this.coursewhitelist = args.coursewhitelist
+
+    console.log('ltihandler available lms ', args.lmslist)
   }
 
   handleLogin(req, res) {
@@ -54,9 +56,10 @@ export class LtiHandler {
     ) // may be remove later
     const platform = this.lmslist[params.iss]
     if (!platform)
-      return res
-        .status(400)
-        .send({ status: 400, error: 'Platform not registered!' })
+      return res.status(400).send({
+        status: 400,
+        error: 'Platform ' + params.iss + ' not registered!'
+      })
     // use client_id for getting data base connection
     // if not active platform redirect
 
@@ -100,9 +103,12 @@ export class LtiHandler {
         return res.status(400).send({
           status: 400,
           error: 'Bad Request',
-          details: { message: 'platform'
-                    + decodedToken.payload.iss
-                    + ' not registered/supported' }
+          details: {
+            message:
+              'platform' +
+              decodedToken.payload.iss +
+              ' not registered/supported'
+          }
         })
 
       const keyinfo = await got.get(platform.keyset_url).json()
