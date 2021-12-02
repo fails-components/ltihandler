@@ -476,8 +476,9 @@ export class LtiHandler {
         toupdate.coursetitle = linfo.coursetitle
       let containsowner = true
       let isowner = false
-      if (args.owner && lecturedoc.owners) {
-        containsowner = lecturedoc.owners.includes(args.owner)
+      if (args.owner) {
+        if (lecturedoc.owners) containsowner = lecturedoc.owners.includes(args.owner)
+        else containsowner = false
         isowner = true
       }
 
