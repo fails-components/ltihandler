@@ -561,9 +561,10 @@ export class LtiHandler {
     if (!req.token.iss) return res.status(401).send('malformed request')
 
     try {
-      const user = await userscol.findOne({
+      /* const user = await userscol.findOne({
         $and: [{ $or: orquery }, { 'lms.iss': req.token.iss }]
-      })
+      }) */ // not this is wrong, we assume that all lms share the usernames and emails with the system
+      const user = await userscol.findOne({ $or: orquery })
       if (!user) res.status(404).send('user not found')
       if (user.uuid) res.status(200).json({ uuid: user.uuid })
       else res.status(404).send('uuid not found')
