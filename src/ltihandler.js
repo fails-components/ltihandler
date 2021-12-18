@@ -477,7 +477,8 @@ export class LtiHandler {
       let containsowner = true
       let isowner = false
       if (args.owner) {
-        if (lecturedoc.owners) containsowner = lecturedoc.owners.includes(args.owner)
+        if (lecturedoc.owners)
+          containsowner = lecturedoc.owners.includes(args.owner)
         else containsowner = false
         isowner = true
       }
