@@ -132,169 +132,164 @@ export class LtiHandler {
         return res
           .status(400)
           .send({ status: 400, error: 'nonce wrong format' })
-      this.redis.exists('lti:nonce:' + payload.nonce, async (err, redres) => {
-        if (err) {
-          console.log('redis error', err)
+      let redres
+      try {
+        redres = await this.redis.exists('lti:nonce:' + payload.nonce)
+      } catch (error) {
+        console.log('lti error, redis', error)
+        return res.status(400).send({ status: 400, error: 'redis broken' })
+      }
+      if (redres === 1)
+        return res
+          .status(400)
+          .send({ status: 400, error: 'nonce reused, replay attack?' })
+      else {
+        // we have to store it in the db
+        try {
+          await this.redis.set('lti:nonce:' + payload.nonce, 'dummy', {
+            EX: 60 * 10 /* 10 minutes */
+          }) // we do not have to use the callback
+        } catch (error) {
+          console.log('lti error, redis', error)
           return res.status(400).send({ status: 400, error: 'redis broken' })
-        } else if (redres === 1)
-          return res
-            .status(400)
-            .send({ status: 400, error: 'nonce reused, replay attack?' })
-        else {
-          // we have to store it in the db
-          this.redis.set(
-            'lti:nonce:' + payload.nonce,
-            'dummy',
-            'EX',
-            60 * 10 /* 10 minutes */
-          ) // we do not have to use the callback
-
-          if (
-            !jwt.verify(req.body.id_token, key, {
-              /* nonce: ADD */
-            })
-          )
-            return res
-              .status(400)
-              .send({ status: 400, error: 'jwt verification failure' })
-
-          if (
-            payload[
-              'https://purl.imsglobal.org/spec/lti/claim/message_type'
-            ] !== 'LtiResourceLinkRequest'
-          )
-            return res.status(400).send({
-              status: 400,
-              error:
-                'so far only resource links are supported ' +
-                payload[
-                  'https://purl.imsglobal.org/spec/lti/claim/message_type'
-                ]
-            })
-
-          // now we have to collect the data
-          const userinfo = {
-            firstnames: payload.given_name,
-            lastname: payload.family_name,
-            displayname: payload.name,
-            email: payload.email, // can be used for matching persons, multple possible
-            lmssub: payload.sub // even this may be missing in anonymus case
-          }
-          if (payload['https://purl.imsglobal.org/spec/lti/claim/ext'])
-            userinfo.lmsusername =
-              payload[
-                'https://purl.imsglobal.org/spec/lti/claim/ext'
-              ].user_username
-
-          // console.log("userinfo", userinfo);
-          const lmscontext = {
-            // TODO add unique platform identifier?
-            ret_url:
-              payload[
-                'https://purl.imsglobal.org/spec/lti/claim/launch_presentation'
-              ].return_url,
-            iss: payload.iss, // not optional, use for identification
-
-            /* aud: payload.aud, */ // may be exclude
-            platform_id:
-              payload['https://purl.imsglobal.org/spec/lti/claim/tool_platform']
-                .guid, // optional
-            deploy_id:
-              payload[
-                'https://purl.imsglobal.org/spec/lti/claim/deployment_id'
-              ], // do not use for identification, period!
-            course_id:
-              payload['https://purl.imsglobal.org/spec/lti/claim/context'].id, // optional, use for context identification if possible
-            resource_id:
-              payload['https://purl.imsglobal.org/spec/lti/claim/resource_link']
-                .id // use for identification
-          }
-          if (
-            this.coursewhitelist &&
-            (!lmscontext.course_id ||
-              this.coursewhitelist.indexOf(lmscontext.course_id) === -1)
-          ) {
-            return res.status(400).send({
-              status: 400,
-              error: 'course ' + lmscontext.course_id + ' not on whitelist'
-            })
-          }
-
-          if (
-            !lmscontext.deploy_id ||
-            !lmscontext.resource_id ||
-            !lmscontext.iss
-          )
-            return res
-              .status(400)
-              .send({ status: 400, error: 'lti mandatory fields missing' })
-          // console.log("lmscontext", lmscontext);
-          const lectureinfo = {
-            coursetitle:
-              payload['https://purl.imsglobal.org/spec/lti/claim/context']
-                .title ||
-              payload['https://purl.imsglobal.org/spec/lti/claim/context']
-                .label ||
-              payload['https://purl.imsglobal.org/spec/lti/claim/resource_link']
-                .title,
-            lecturetitle:
-              payload['https://purl.imsglobal.org/spec/lti/claim/resource_link']
-                .title
-          }
-          // console.log("lectureinfo", lectureinfo);
-
-          const role = []
-          if (
-            payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
-              'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'
-            )
-          )
-            role.push('audience')
-
-          if (
-            payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
-              'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'
-            )
-          ) {
-            if (payload.sub) {
-              role.push('instructor')
-            } else role.push('audience') // only audience supported, if anonymous
-          }
-          // console.log(role);
-          // ok we have everything, but now we have to bind it to fails structures
-          // we to identify lecture and context, which can be course or the lecture
-          // and the user !!
-          const failsuser = await this.identifyCreateUser(userinfo)
-          // console.log('failsuser', failsuser)
-          const courseinfo = { lms: lmscontext, linfo: lectureinfo }
-          if (role.includes('instructor')) {
-            courseinfo.owner = failsuser.useruuid // claim ownership
-            courseinfo.ownerdisplayname = failsuser.displayname
-          }
-
-          const failscourse = await this.identifyCreateLectureAndCourse(
-            courseinfo
-          ) // TODO
-          if (!failscourse)
-            return res
-              .status(400)
-              .send({ status: 400, error: 'resource can not be identified' })
-          // console.log('failscourse', failscourse)
-
-          const token = {
-            course: failscourse,
-            user: failsuser,
-            role: role,
-            context: 'lti',
-            maxrenew: 5
-          } // five times 5 minutes should be enough
-          const jwttoken = await this.signJwt(token)
-
-          return res.redirect(this.basefailsurl + '/' + '?token=' + jwttoken)
         }
 
-        // console.log("decoded token",decodedToken.payload);
-      })
+        if (
+          !jwt.verify(req.body.id_token, key, {
+            /* nonce: ADD */
+          })
+        )
+          return res
+            .status(400)
+            .send({ status: 400, error: 'jwt verification failure' })
+
+        if (
+          payload['https://purl.imsglobal.org/spec/lti/claim/message_type'] !==
+          'LtiResourceLinkRequest'
+        )
+          return res.status(400).send({
+            status: 400,
+            error:
+              'so far only resource links are supported ' +
+              payload['https://purl.imsglobal.org/spec/lti/claim/message_type']
+          })
+
+        // now we have to collect the data
+        const userinfo = {
+          firstnames: payload.given_name,
+          lastname: payload.family_name,
+          displayname: payload.name,
+          email: payload.email, // can be used for matching persons, multple possible
+          lmssub: payload.sub // even this may be missing in anonymus case
+        }
+        if (payload['https://purl.imsglobal.org/spec/lti/claim/ext'])
+          userinfo.lmsusername =
+            payload[
+              'https://purl.imsglobal.org/spec/lti/claim/ext'
+            ].user_username
+
+        // console.log("userinfo", userinfo);
+        const lmscontext = {
+          // TODO add unique platform identifier?
+          ret_url:
+            payload[
+              'https://purl.imsglobal.org/spec/lti/claim/launch_presentation'
+            ].return_url,
+          iss: payload.iss, // not optional, use for identification
+
+          /* aud: payload.aud, */ // may be exclude
+          platform_id:
+            payload['https://purl.imsglobal.org/spec/lti/claim/tool_platform']
+              .guid, // optional
+          deploy_id:
+            payload['https://purl.imsglobal.org/spec/lti/claim/deployment_id'], // do not use for identification, period!
+          course_id:
+            payload['https://purl.imsglobal.org/spec/lti/claim/context'].id, // optional, use for context identification if possible
+          resource_id:
+            payload['https://purl.imsglobal.org/spec/lti/claim/resource_link']
+              .id // use for identification
+        }
+        if (
+          this.coursewhitelist &&
+          (!lmscontext.course_id ||
+            this.coursewhitelist.indexOf(lmscontext.course_id) === -1)
+        ) {
+          return res.status(400).send({
+            status: 400,
+            error: 'course ' + lmscontext.course_id + ' not on whitelist'
+          })
+        }
+
+        if (!lmscontext.deploy_id || !lmscontext.resource_id || !lmscontext.iss)
+          return res
+            .status(400)
+            .send({ status: 400, error: 'lti mandatory fields missing' })
+        // console.log("lmscontext", lmscontext);
+        const lectureinfo = {
+          coursetitle:
+            payload['https://purl.imsglobal.org/spec/lti/claim/context']
+              .title ||
+            payload['https://purl.imsglobal.org/spec/lti/claim/context']
+              .label ||
+            payload['https://purl.imsglobal.org/spec/lti/claim/resource_link']
+              .title,
+          lecturetitle:
+            payload['https://purl.imsglobal.org/spec/lti/claim/resource_link']
+              .title
+        }
+        // console.log("lectureinfo", lectureinfo);
+
+        const role = []
+        if (
+          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'
+          )
+        )
+          role.push('audience')
+
+        if (
+          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'
+          )
+        ) {
+          if (payload.sub) {
+            role.push('instructor')
+          } else role.push('audience') // only audience supported, if anonymous
+        }
+        // console.log(role);
+        // ok we have everything, but now we have to bind it to fails structures
+        // we to identify lecture and context, which can be course or the lecture
+        // and the user !!
+        const failsuser = await this.identifyCreateUser(userinfo)
+        // console.log('failsuser', failsuser)
+        const courseinfo = { lms: lmscontext, linfo: lectureinfo }
+        if (role.includes('instructor')) {
+          courseinfo.owner = failsuser.useruuid // claim ownership
+          courseinfo.ownerdisplayname = failsuser.displayname
+        }
+
+        const failscourse = await this.identifyCreateLectureAndCourse(
+          courseinfo
+        ) // TODO
+        if (!failscourse)
+          return res
+            .status(400)
+            .send({ status: 400, error: 'resource can not be identified' })
+        // console.log('failscourse', failscourse)
+
+        const token = {
+          course: failscourse,
+          user: failsuser,
+          role: role,
+          context: 'lti',
+          maxrenew: 5
+        } // five times 5 minutes should be enough
+        const jwttoken = await this.signJwt(token)
+
+        return res.redirect(this.basefailsurl + '/' + '?token=' + jwttoken)
+      }
+
+      // console.log("decoded token",decodedToken.payload);
     } else
       return res.status(400).send({
         status: 400,
