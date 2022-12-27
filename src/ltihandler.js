@@ -20,7 +20,7 @@
 import { v4 as uuidv4, validate } from 'uuid'
 import url from 'fast-url-parser'
 import jwt from 'jsonwebtoken'
-import jwtexpress from 'express-jwt'
+import { expressjwt as jwtexpress } from 'express-jwt'
 import got from 'got'
 import Jwk from 'rasha'
 import moment from 'moment'
