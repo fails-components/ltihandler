@@ -28,12 +28,23 @@ import { LtiHandler } from './ltihandler.js'
 
 const initServer = async () => {
   const cfg = new FailsConfig()
-  const redisclient = redis.createClient({
-    socket: { port: cfg.redisPort(), host: cfg.redisHost() },
-    password: cfg.redisPass()
-  })
 
-  await redisclient.connect()
+  let rediscl
+  // eslint-disable-next-line no-constant-condition
+  if (!(/* cfg.redisClusterRootNodes() */ false)) {
+    console.log(
+      'Connect to redis database with host:',
+      cfg.redisHost(),
+      'and port:',
+      cfg.redisPort()
+    )
+    rediscl = redis.createClient({
+      socket: { port: cfg.redisPort(), host: cfg.redisHost() },
+      password: cfg.redisPass()
+    })
+  }
+
+  await rediscl.connect()
   console.log('redisclient connected')
 
   const mongoclient = await MongoClient.connect(cfg.getMongoURL(), {
@@ -43,7 +54,7 @@ const initServer = async () => {
   const mongodb = mongoclient.db(cfg.getMongoDB())
 
   const appsecurity = new FailsJWTSigner({
-    redis: redisclient,
+    redis: rediscl,
     type: 'app',
     expiresIn: '1m',
     secret: cfg.getKeysSecret()
@@ -54,7 +65,7 @@ const initServer = async () => {
   const ltihandler = new LtiHandler({
     lmslist: lmsList,
     signJwt: appsecurity.signToken,
-    redis: redisclient,
+    redis: rediscl,
     mongo: mongodb,
     basefailsurl: cfg.getURL('appweb'),
     coursewhitelist: cfg.courseWhitelist()
