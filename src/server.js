@@ -108,12 +108,7 @@ const initServer = async () => {
   })
 
   app.get('/health', async (req, res) => {
-    try {
-      await rediscl.ping()
-      // TODO add health check for mongo db
-    } catch (error) {
-      res.status(500).send('Not healthy')
-    }
+    res.send('Healthy')
   })
 
   app.use(
