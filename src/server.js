@@ -30,7 +30,6 @@ const initServer = async () => {
   const cfg = new FailsConfig()
 
   let rediscl
-  // eslint-disable-next-line no-constant-condition
   let redisclusterconfig
   if (cfg.getRedisClusterConfig)
     redisclusterconfig = cfg.getRedisClusterConfig()
