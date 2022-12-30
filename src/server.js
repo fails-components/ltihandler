@@ -31,7 +31,10 @@ const initServer = async () => {
 
   let rediscl
   // eslint-disable-next-line no-constant-condition
-  if (!(/* cfg.redisClusterRootNodes() */ false)) {
+  let redisclusterconfig
+  if (cfg.getRedisClusterConfig)
+    redisclusterconfig = cfg.getRedisClusterConfig()
+  if (!redisclusterconfig) {
     console.log(
       'Connect to redis database with host:',
       cfg.redisHost(),
@@ -42,6 +45,10 @@ const initServer = async () => {
       socket: { port: cfg.redisPort(), host: cfg.redisHost() },
       password: cfg.redisPass()
     })
+  } else {
+    // cluster case
+    console.log('Connect to redis cluster with config:', redisclusterconfig)
+    rediscl = redis.createCluster(redisclusterconfig)
   }
 
   await rediscl.connect()
@@ -72,6 +79,7 @@ const initServer = async () => {
   })
 
   const app = express()
+  let ready
 
   // may be move the io also inside the object, on the other hand, I can not insert middleware anymore
 
@@ -91,6 +99,21 @@ const initServer = async () => {
 
   app.all(cfg.getSPath('lti') + '/login', (req, res) => {
     return ltihandler.handleLogin(req, res)
+  })
+
+  // Kubernetes livelyness and readyness probes
+  app.get('/ready', (req, res) => {
+    if (ready) return res.send('Ready')
+    else res.status(500).send('Not ready')
+  })
+
+  app.get('/health', async (req, res) => {
+    try {
+      await rediscl.ping()
+      // TODO add health check for mongo db
+    } catch (error) {
+      res.status(500).send('Not healthy')
+    }
   })
 
   app.use(
@@ -130,6 +153,7 @@ app.all("/auth",function(req,res,next) {
       ' host:',
       cfg.getHost()
     )
+    ready = true
   })
 }
 initServer()
