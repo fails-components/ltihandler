@@ -515,7 +515,7 @@ export class LtiHandler {
   }
 
   maintenanceExpress() {
-    const secretCallback = async (req, payload) => {
+    const secretCallback = async (req, { header, payload }) => {
       const keyid = payload.kid
       if (!keyid) return throw new Error('no valid kid!')
 
@@ -529,7 +529,7 @@ export class LtiHandler {
       const jwk = keys.find((key) => {
         return key.kid === keyid
       })
-      if (!jwk) return throe new Error('key not found')
+      if (!jwk) return throw new Error('key not found')
       return jwk
     }
 
