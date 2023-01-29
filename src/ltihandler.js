@@ -515,22 +515,22 @@ export class LtiHandler {
   }
 
   maintenanceExpress() {
-    const secretCallback = async (req, payload, done) => {
+    const secretCallback = async (req, { header, payload }) => {
       const keyid = payload.kid
-      if (!keyid) return done(new Error('no valid kid!'))
+      if (!keyid) throw new Error('no valid kid!')
 
       const platform = this.lmslist[payload.iss]
-      if (!platform) return done(new Error('platform not registered/supported'))
+      if (!platform) throw new Error('platform not registered/supported')
 
       const keyinfo = await got.get(platform.keyset_url).json()
       const keys = keyinfo.keys
-      if (!keys) return done(new Error('Keyset not found'))
+      if (!keys) throw new Error('Keyset not found')
 
       const jwk = keys.find((key) => {
         return key.kid === keyid
       })
-      if (!jwk) return done(new Error('key not found'))
-      done(null, jwk)
+      if (!jwk) throw new Error('key not found')
+      return jwk
     }
 
     return jwtexpress({
