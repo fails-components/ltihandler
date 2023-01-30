@@ -544,7 +544,8 @@ export class LtiHandler {
     const userscol = this.mongo.collection('users')
     const orquery = []
 
-    if (!req.token) res.status(401).send('malformed request: token invalid or missing')
+    if (!req.token)
+      res.status(401).send('malformed request: token invalid or missing')
     if (
       req.body.username &&
       req.body.username.match(/^[0-9a-zA-Z._-]+$/) &&
@@ -554,8 +555,12 @@ export class LtiHandler {
     if (req.body.email && typeof req.body.email === 'string')
       orquery.push({ email: req.body.email })
 
-    if (orquery.length === 0) return res.status(401).send('malformed request: missing username or email')
-    if (!req.token.iss) return res.status(401).send('malformed request: no issuer in token')
+    if (orquery.length === 0)
+      return res
+        .status(401)
+        .send('malformed request: missing username or email')
+    if (!req.token.iss)
+      return res.status(401).send('malformed request: no issuer in token')
 
     try {
       /* const user = await userscol.findOne({
