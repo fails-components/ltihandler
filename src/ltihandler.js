@@ -1,6 +1,6 @@
 /*
     Fails Components (Fancy Automated Internet Lecture System - Components)
-    Copyright (C)  2015-2017 (original FAILS), 
+    Copyright (C)  2015-2017 (original FAILS),
                    2021- (FAILS Components)  Marten Richter <marten.richter@freenet.de>
 
     This program is free software: you can redistribute it and/or modify
@@ -530,12 +530,12 @@ export class LtiHandler {
         return key.kid === keyid
       })
       if (!jwk) throw new Error('key not found')
-      return jwk
+      return await Jwk.export({ jwk: jwk })
     }
 
     return jwtexpress({
       secret: secretCallback,
-      algorithms: ['ES512'],
+      algorithms: ['RS256', 'RS384', 'RS512'],
       requestProperty: 'token'
     })
   }
@@ -544,7 +544,7 @@ export class LtiHandler {
     const userscol = this.mongo.collection('users')
     const orquery = []
 
-    if (!req.token) res.status(401).send('malformed request')
+    if (!req.token) res.status(401).send('malformed request: token invalid or missing')
     if (
       req.body.username &&
       req.body.username.match(/^[0-9a-zA-Z._-]+$/) &&
@@ -554,8 +554,8 @@ export class LtiHandler {
     if (req.body.email && typeof req.body.email === 'string')
       orquery.push({ email: req.body.email })
 
-    if (orquery.length === 0) return res.status(401).send('malformed request')
-    if (!req.token.iss) return res.status(401).send('malformed request')
+    if (orquery.length === 0) return res.status(401).send('malformed request: missing username or email')
+    if (!req.token.iss) return res.status(401).send('malformed request: no issuer in token')
 
     try {
       /* const user = await userscol.findOne({
