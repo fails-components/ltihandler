@@ -73,7 +73,10 @@ const initServer = async () => {
     signJwt: appsecurity.signToken,
     redis: rediscl,
     mongo: mongodb,
-    basefailsurl: cfg.getURL('appweb'),
+    basefailsurl: {
+      stable: cfg.getURL('appweb', 'stable'),
+      experimental: cfg.getURL('appweb', 'experimental')
+    },
     coursewhitelist: cfg.courseWhitelist()
   })
 

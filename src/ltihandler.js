@@ -278,15 +278,18 @@ export class LtiHandler {
         // console.log('failscourse', failscourse)
 
         const token = {
-          course: failscourse,
+          course: { lectureuuid: failscourse.lectureuuid },
           user: failsuser,
           role: role,
           context: 'lti',
+          appversion: failscourse.appversion,
           maxrenew: 5
         } // five times 5 minutes should be enough
         const jwttoken = await this.signJwt(token)
 
-        return res.redirect(this.basefailsurl + '/' + '?token=' + jwttoken)
+        return res.redirect(
+          this.basefailsurl[failscourse.appversion] + '/' + '?token=' + jwttoken
+        )
       }
 
       // console.log("decoded token",decodedToken.payload);
@@ -423,6 +426,15 @@ export class LtiHandler {
     let title = linfo.lecturetitle
     let coursetitle = linfo.coursetitle
 
+    let appversion = lecturedoc.appversion || 'stable'
+    if ((lecturedoc == null || !lecturedoc.appversion) && lms.course_id) {
+      const lectappdoc = await lecturescol.findOne(
+        { $and: [{ 'lms.iss': lms.iss }, { 'lms.course_id': lms.course_id }] },
+        { projection: { appversion: 1 } }
+      )
+      if (lectappdoc?.appversion) appversion = lectappdoc.appversion
+    }
+
     if (lecturedoc == null) {
       // deploy data
       const toinsert = {}
@@ -434,6 +446,7 @@ export class LtiHandler {
       if (lms.deploy_id) toinsert.lms.deploy_id = lms.deploy_id
       if (linfo.lecturetitle) toinsert.title = linfo.lecturetitle
       if (linfo.coursetitle) toinsert.coursetitle = linfo.coursetitle
+      toinsert.appversion = appversion
       lectureuuid = uuidv4()
       toinsert.uuid = lectureuuid
       if (args.owner) {
@@ -469,6 +482,8 @@ export class LtiHandler {
         toupdate.title = linfo.lecturetitle
       if (lecturedoc.coursetitle !== linfo.coursetitle)
         toupdate.coursetitle = linfo.coursetitle
+      if (!lecturedoc.appversion) lecturedoc.appversion = appversion
+
       let containsowner = true
       let isowner = false
       if (args.owner) {
@@ -507,7 +522,7 @@ export class LtiHandler {
         }
       }
     }
-    const retobj = { lectureuuid: lectureuuid }
+    const retobj = { lectureuuid, appversion }
     // if (title) retobj.title=title;
     // if (coursetitle) retobj.coursetitle=coursetitle;
 
