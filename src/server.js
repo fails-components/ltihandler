@@ -127,6 +127,10 @@ const initServer = async () => {
     return ltihandler.handleDeleteCourse(req, res)
   })
 
+  app.delete(cfg.getSPath('lti') + '/maintenance/resource', (req, res) => {
+    return ltihandler.handleDeleteResource(req, res)
+  })
+
   /*
 // old test code?
 app.all("/auth",function(req,res,next) {

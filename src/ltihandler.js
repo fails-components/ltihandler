@@ -578,7 +578,7 @@ export class LtiHandler {
 
   async handleDeleteUser(req, res) {
     if (!validate(req.body.uuid))
-      return res.status(401).send('malformed request')
+      return res.status(401).send('malformed request: missing uuid')
     const useruuid = req.body.uuid
     try {
       const userscol = this.mongo.collection('users')
@@ -602,11 +602,15 @@ export class LtiHandler {
   }
 
   async handleDeleteCourse(req, res) {
-    if (!req.token) res.status(401).send('malformed request')
-    if (!req.token.iss) return res.status(401).send('malformed request')
-    if (!req.body.courseid) return res.status(401).send('malformed request')
+    if (!req.token)
+      res.status(401).send('malformed request: token invalid or missing')
+    if (!req.token.iss)
+      return res.status(401).send('malformed request: missing iss')
+    if (!req.body.courseid)
+      return res.status(401).send('malformed request: missing courseid')
     const courseid = Number(req.body.courseid)
-    if (Number.isNaN(courseid)) return res.status(401).send('malformed request')
+    if (Number.isNaN(courseid))
+      return res.status(401).send('malformed request: courseid not a number')
     try {
       const lecturescol = this.mongo.collection('lectures')
       const mods = await lecturescol.updateMany(
@@ -619,6 +623,40 @@ export class LtiHandler {
     } catch (error) {
       console.log('handleDeleteCourse error', error)
       return res.status(500).send('delete course error')
+    }
+  }
+
+  async handleDeleteResource(req, res) {
+    if (!req.token)
+      res.status(401).send('malformed request: token invalid or missing')
+    if (!req.token.iss)
+      return res.status(401).send('malformed request: missing issuer')
+    if (!req.body.courseid)
+      return res.status(401).send('malformed request: missing courseid')
+    if (!req.body.resourceid)
+      return res.status(401).send('malformed request: missing resourceid')
+    const courseid = Number(req.body.courseid)
+    if (Number.isNaN(courseid))
+      return res.status(401).send('malformed request: courseid not a number')
+    const resourceid = Number(req.body.resourceid)
+    if (Number.isNaN(resourceid))
+      return res.status(401).send('malformed request: resourceid not a number')
+    try {
+      const lecturescol = this.mongo.collection('lectures')
+      const mods = await lecturescol.updateMany(
+        {
+          'lms.iss': req.token.iss,
+          'lms.course_id': courseid.toString(),
+          'lms.resource_id': resourceid.toString()
+        },
+        { $rename: { 'lms.resource_id': 'lms.resource_id_deleted' } }
+      )
+      res.status(200).json({
+        modifieddocs: mods.modifiedCount
+      })
+    } catch (error) {
+      console.log('handleDeleteResource error', error)
+      return res.status(500).send('delete resource error')
     }
   }
 }
