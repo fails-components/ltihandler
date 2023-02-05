@@ -426,7 +426,7 @@ export class LtiHandler {
     let title = linfo.lecturetitle
     let coursetitle = linfo.coursetitle
 
-    let appversion = lecturedoc.appversion || 'stable'
+    let appversion = lecturedoc?.appversion || 'stable'
     if ((lecturedoc == null || !lecturedoc.appversion) && lms.course_id) {
       const lectappdoc = await lecturescol.findOne(
         { $and: [{ 'lms.iss': lms.iss }, { 'lms.course_id': lms.course_id }] },
