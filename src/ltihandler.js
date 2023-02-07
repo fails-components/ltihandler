@@ -239,16 +239,27 @@ export class LtiHandler {
         }
         // console.log("lectureinfo", lectureinfo);
 
+        const rolesKey = 'https://purl.imsglobal.org/spec/lti/claim/roles';
         const role = []
         if (
-          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+          payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'
           )
         )
           role.push('audience')
 
         if (
-          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+          payload[rolesKey].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator'
+          ) || payload[rolesKey].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/system/person#Administrator'
+          )
+        ) {
+          role.push('administrator')
+        }
+
+        if (
+          payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'
           )
         ) {
@@ -263,7 +274,7 @@ export class LtiHandler {
         const failsuser = await this.identifyCreateUser(userinfo)
         // console.log('failsuser', failsuser)
         const courseinfo = { lms: lmscontext, linfo: lectureinfo }
-        if (role.includes('instructor')) {
+        if (role.includes('instructor') && !role.includes('administrator')) {
           courseinfo.owner = failsuser.useruuid // claim ownership
           courseinfo.ownerdisplayname = failsuser.displayname
         }
