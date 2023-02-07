@@ -33,6 +33,7 @@ export class LtiHandler {
     this.signJwt = args.signJwt
     this.basefailsurl = args.basefailsurl
     this.coursewhitelist = args.coursewhitelist
+    this.readOnly = args.readOnly
 
     console.log('ltihandler available lms ', args.lmslist)
   }
@@ -263,7 +264,7 @@ export class LtiHandler {
             'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'
           )
         ) {
-          if (payload.sub) {
+          if (payload.sub && !this.readOnly) {
             role.push('instructor')
           } else role.push('audience') // only audience supported, if anonymous
         }
