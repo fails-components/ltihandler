@@ -33,8 +33,11 @@ export class LtiHandler {
     this.signJwt = args.signJwt
     this.basefailsurl = args.basefailsurl
     this.coursewhitelist = args.coursewhitelist
+    this.onlyLearners = args.onlyLearners
 
     console.log('ltihandler available lms ', args.lmslist)
+    if (this.onlyLearners)
+      console.log('all access limited to learner level for instructors')
   }
 
   handleLogin(req, res) {
@@ -239,20 +242,32 @@ export class LtiHandler {
         }
         // console.log("lectureinfo", lectureinfo);
 
+        const rolesKey = 'https://purl.imsglobal.org/spec/lti/claim/roles'
         const role = []
         if (
-          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+          payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'
           )
         )
           role.push('audience')
 
         if (
-          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+          payload[rolesKey].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator'
+          ) ||
+          payload[rolesKey].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/system/person#Administrator'
+          )
+        ) {
+          role.push('administrator')
+        }
+
+        if (
+          payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'
           )
         ) {
-          if (payload.sub) {
+          if (payload.sub && !this.onlyLearners) {
             role.push('instructor')
           } else role.push('audience') // only audience supported, if anonymous
         }
@@ -263,7 +278,7 @@ export class LtiHandler {
         const failsuser = await this.identifyCreateUser(userinfo)
         // console.log('failsuser', failsuser)
         const courseinfo = { lms: lmscontext, linfo: lectureinfo }
-        if (role.includes('instructor')) {
+        if (role.includes('instructor') && !role.includes('administrator')) {
           courseinfo.owner = failsuser.useruuid // claim ownership
           courseinfo.ownerdisplayname = failsuser.displayname
         }

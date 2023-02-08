@@ -1,6 +1,6 @@
 /*
     Fails Components (Fancy Automated Internet Lecture System - Components)
-    Copyright (C)  2015-2017 (original FAILS), 
+    Copyright (C)  2015-2017 (original FAILS),
                    2021- (FAILS Components)  Marten Richter <marten.richter@freenet.de>
 
     This program is free software: you can redistribute it and/or modify
@@ -77,7 +77,8 @@ const initServer = async () => {
       stable: cfg.getURL('appweb', 'stable'),
       experimental: cfg.getURL('appweb', 'experimental')
     },
-    coursewhitelist: cfg.courseWhitelist()
+    coursewhitelist: cfg.courseWhitelist(),
+    onlyLearners: cfg.onlyLearners()
   })
 
   const app = express()
