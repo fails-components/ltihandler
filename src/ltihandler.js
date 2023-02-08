@@ -240,7 +240,7 @@ export class LtiHandler {
         }
         // console.log("lectureinfo", lectureinfo);
 
-        const rolesKey = 'https://purl.imsglobal.org/spec/lti/claim/roles';
+        const rolesKey = 'https://purl.imsglobal.org/spec/lti/claim/roles'
         const role = []
         if (
           payload[rolesKey].includes(
@@ -252,7 +252,8 @@ export class LtiHandler {
         if (
           payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator'
-          ) || payload[rolesKey].includes(
+          ) ||
+          payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/system/person#Administrator'
           )
         ) {
