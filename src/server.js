@@ -78,7 +78,7 @@ const initServer = async () => {
       experimental: cfg.getURL('appweb', 'experimental')
     },
     coursewhitelist: cfg.courseWhitelist(),
-    readOnly: false
+    onlyLearners: cfg.onlyLearners()
   })
 
   const app = express()
