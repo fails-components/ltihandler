@@ -584,6 +584,8 @@ export class LtiHandler {
       orquery.push({ 'lms.username': req.body.username })
     if (req.body.email && typeof req.body.email === 'string')
       orquery.push({ email: req.body.email })
+    if (req.body.lmssub && typeof req.body.lmssub === 'number')
+      orquery.push({ 'lms.sub': req.body.lmssub })
 
     if (orquery.length === 0)
       return res
