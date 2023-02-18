@@ -1,6 +1,6 @@
 {
   "name": "@fails-components/ltihandler",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Supplies server side lti handling",
   "author": "Marten Richter",
   "license": "AGPL-3.0-or-later",
