@@ -113,8 +113,15 @@ export class LtiHandler {
               ' not registered/supported'
           }
         })
-
-      const keyinfo = await got.get(platform.keyset_url).json()
+      let keyinfo
+      try {
+        keyinfo = await got.get(platform.keyset_url).json()
+      } catch (error) {
+        console.log('lti error, key fetch', error)
+        return res
+          .status(400)
+          .send({ status: 400, error: 'problem, while accessing platform key' })
+      }
       const keys = keyinfo.keys
       if (!keys)
         return res.status(400).send({ status: 400, error: 'Keyset not found' })
@@ -127,7 +134,15 @@ export class LtiHandler {
       })
       if (!jwk)
         return res.status(400).send({ status: 400, error: 'key not found' })
-      const key = await Jwk.export({ jwk: jwk })
+      let key
+      try {
+        key = await Jwk.export({ jwk: jwk })
+      } catch (error) {
+        console.log('Jwk export: error', error)
+        return res
+          .status(500)
+          .send({ status: 400, error: 'key export problem' })
+      }
       const payload = decodedToken.payload
 
       // console.log("decoded token payload",payload);
@@ -551,8 +566,13 @@ export class LtiHandler {
 
       const platform = this.lmslist[payload.iss]
       if (!platform) throw new Error('platform not registered/supported')
-
-      const keyinfo = await got.get(platform.keyset_url).json()
+      let keyinfo
+      try {
+        keyinfo = await got.get(platform.keyset_url).json()
+      } catch (error) {
+        console.log('Key info loading problem in maintenance:', error)
+        throw new Error('cannot load key info')
+      }
       const keys = keyinfo.keys
       if (!keys) throw new Error('Keyset not found')
 
@@ -560,7 +580,14 @@ export class LtiHandler {
         return key.kid === keyid
       })
       if (!jwk) throw new Error('key not found')
-      return await Jwk.export({ jwk: jwk })
+      let key
+      try {
+        key = await Jwk.export({ jwk: jwk })
+      } catch (error) {
+        console.log('Jwk export: error', error)
+        throw new Error('Jwk key export problem')
+      }
+      return key
     }
 
     return jwtexpress({
