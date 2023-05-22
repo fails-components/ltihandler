@@ -602,7 +602,7 @@ export class LtiHandler {
     const orquery = []
 
     if (!req.token)
-      res.status(401).send('malformed request: token invalid or missing')
+      return res.status(401).send('malformed request: token invalid or missing')
     if (
       req.body.username &&
       req.body.username.match(/^[0-9a-zA-Z._-]+$/) &&
@@ -627,7 +627,7 @@ export class LtiHandler {
         $and: [{ $or: orquery }, { 'lms.iss': req.token.iss }]
       }) */ // not this is wrong, we assume that all lms share the usernames and emails with the system
       const user = await userscol.findOne({ $or: orquery })
-      if (!user) res.status(404).send('user not found')
+      if (!user) return res.status(404).send('user not found')
       if (user.uuid) res.status(200).json({ uuid: user.uuid })
       else res.status(404).send('uuid not found')
     } catch (error) {
@@ -663,7 +663,7 @@ export class LtiHandler {
 
   async handleDeleteCourse(req, res) {
     if (!req.token)
-      res.status(401).send('malformed request: token invalid or missing')
+      return res.status(401).send('malformed request: token invalid or missing')
     if (!req.token.iss)
       return res.status(401).send('malformed request: missing iss')
     if (!req.body.courseid)
@@ -688,7 +688,7 @@ export class LtiHandler {
 
   async handleDeleteResource(req, res) {
     if (!req.token)
-      res.status(401).send('malformed request: token invalid or missing')
+      return res.status(401).send('malformed request: token invalid or missing')
     if (!req.token.iss)
       return res.status(401).send('malformed request: missing issuer')
     if (!req.body.courseid)
