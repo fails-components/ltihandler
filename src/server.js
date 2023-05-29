@@ -1,6 +1,6 @@
 /*
     Fails Components (Fancy Automated Internet Lecture System - Components)
-    Copyright (C)  2015-2017 (original FAILS), 
+    Copyright (C)  2015-2017 (original FAILS),
                    2021- (FAILS Components)  Marten Richter <marten.richter@freenet.de>
 
     This program is free software: you can redistribute it and/or modify
@@ -28,12 +28,29 @@ import { LtiHandler } from './ltihandler.js'
 
 const initServer = async () => {
   const cfg = new FailsConfig()
-  const redisclient = redis.createClient({
-    socket: { port: cfg.redisPort(), host: cfg.redisHost() },
-    password: cfg.redisPass()
-  })
 
-  await redisclient.connect()
+  let rediscl
+  let redisclusterconfig
+  if (cfg.getRedisClusterConfig)
+    redisclusterconfig = cfg.getRedisClusterConfig()
+  if (!redisclusterconfig) {
+    console.log(
+      'Connect to redis database with host:',
+      cfg.redisHost(),
+      'and port:',
+      cfg.redisPort()
+    )
+    rediscl = redis.createClient({
+      socket: { port: cfg.redisPort(), host: cfg.redisHost() },
+      password: cfg.redisPass()
+    })
+  } else {
+    // cluster case
+    console.log('Connect to redis cluster with config:', redisclusterconfig)
+    rediscl = redis.createCluster(redisclusterconfig)
+  }
+
+  await rediscl.connect()
   console.log('redisclient connected')
 
   const mongoclient = await MongoClient.connect(cfg.getMongoURL(), {
@@ -43,7 +60,7 @@ const initServer = async () => {
   const mongodb = mongoclient.db(cfg.getMongoDB())
 
   const appsecurity = new FailsJWTSigner({
-    redis: redisclient,
+    redis: rediscl,
     type: 'app',
     expiresIn: '1m',
     secret: cfg.getKeysSecret()
@@ -54,13 +71,18 @@ const initServer = async () => {
   const ltihandler = new LtiHandler({
     lmslist: lmsList,
     signJwt: appsecurity.signToken,
-    redis: redisclient,
+    redis: rediscl,
     mongo: mongodb,
-    basefailsurl: cfg.getURL('appweb'),
-    coursewhitelist: cfg.courseWhitelist()
+    basefailsurl: {
+      stable: cfg.getURL('appweb', 'stable'),
+      experimental: cfg.getURL('appweb', 'experimental')
+    },
+    coursewhitelist: cfg.courseWhitelist(),
+    onlyLearners: cfg.onlyLearners()
   })
 
   const app = express()
+  let ready
 
   // may be move the io also inside the object, on the other hand, I can not insert middleware anymore
 
@@ -82,6 +104,16 @@ const initServer = async () => {
     return ltihandler.handleLogin(req, res)
   })
 
+  // Kubernetes livelyness and readyness probes
+  app.get('/ready', (req, res) => {
+    if (ready) return res.send('Ready')
+    else res.status(500).send('Not ready')
+  })
+
+  app.get('/health', async (req, res) => {
+    res.send('Healthy')
+  })
+
   app.use(
     cfg.getSPath('lti') + '/maintenance/',
     ltihandler.maintenanceExpress()
@@ -97,6 +129,10 @@ const initServer = async () => {
 
   app.delete(cfg.getSPath('lti') + '/maintenance/course', (req, res) => {
     return ltihandler.handleDeleteCourse(req, res)
+  })
+
+  app.delete(cfg.getSPath('lti') + '/maintenance/resource', (req, res) => {
+    return ltihandler.handleDeleteResource(req, res)
   })
 
   /*
@@ -119,6 +155,7 @@ app.all("/auth",function(req,res,next) {
       ' host:',
       cfg.getHost()
     )
+    ready = true
   })
 }
 initServer()

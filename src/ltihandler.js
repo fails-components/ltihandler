@@ -1,6 +1,6 @@
 /*
     Fails Components (Fancy Automated Internet Lecture System - Components)
-    Copyright (C)  2015-2017 (original FAILS), 
+    Copyright (C)  2015-2017 (original FAILS),
                    2021- (FAILS Components)  Marten Richter <marten.richter@freenet.de>
 
     This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 import { v4 as uuidv4, validate } from 'uuid'
 import url from 'fast-url-parser'
 import jwt from 'jsonwebtoken'
-import jwtexpress from 'express-jwt'
+import { expressjwt as jwtexpress } from 'express-jwt'
 import got from 'got'
 import Jwk from 'rasha'
 import moment from 'moment'
@@ -33,8 +33,11 @@ export class LtiHandler {
     this.signJwt = args.signJwt
     this.basefailsurl = args.basefailsurl
     this.coursewhitelist = args.coursewhitelist
+    this.onlyLearners = args.onlyLearners
 
     console.log('ltihandler available lms ', args.lmslist)
+    if (this.onlyLearners)
+      console.log('all access limited to learner level for instructors')
   }
 
   handleLogin(req, res) {
@@ -110,8 +113,15 @@ export class LtiHandler {
               ' not registered/supported'
           }
         })
-
-      const keyinfo = await got.get(platform.keyset_url).json()
+      let keyinfo
+      try {
+        keyinfo = await got.get(platform.keyset_url).json()
+      } catch (error) {
+        console.log('lti error, key fetch', error)
+        return res
+          .status(400)
+          .send({ status: 400, error: 'problem, while accessing platform key' })
+      }
       const keys = keyinfo.keys
       if (!keys)
         return res.status(400).send({ status: 400, error: 'Keyset not found' })
@@ -124,7 +134,15 @@ export class LtiHandler {
       })
       if (!jwk)
         return res.status(400).send({ status: 400, error: 'key not found' })
-      const key = await Jwk.export({ jwk: jwk })
+      let key
+      try {
+        key = await Jwk.export({ jwk: jwk })
+      } catch (error) {
+        console.log('Jwk export: error', error)
+        return res
+          .status(500)
+          .send({ status: 400, error: 'key export problem' })
+      }
       const payload = decodedToken.payload
 
       // console.log("decoded token payload",payload);
@@ -239,20 +257,32 @@ export class LtiHandler {
         }
         // console.log("lectureinfo", lectureinfo);
 
+        const rolesKey = 'https://purl.imsglobal.org/spec/lti/claim/roles'
         const role = []
         if (
-          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+          payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'
           )
         )
           role.push('audience')
 
         if (
-          payload['https://purl.imsglobal.org/spec/lti/claim/roles'].includes(
+          payload[rolesKey].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator'
+          ) ||
+          payload[rolesKey].includes(
+            'http://purl.imsglobal.org/vocab/lis/v2/system/person#Administrator'
+          )
+        ) {
+          role.push('administrator')
+        }
+
+        if (
+          payload[rolesKey].includes(
             'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'
           )
         ) {
-          if (payload.sub) {
+          if (payload.sub && !this.onlyLearners) {
             role.push('instructor')
           } else role.push('audience') // only audience supported, if anonymous
         }
@@ -263,7 +293,7 @@ export class LtiHandler {
         const failsuser = await this.identifyCreateUser(userinfo)
         // console.log('failsuser', failsuser)
         const courseinfo = { lms: lmscontext, linfo: lectureinfo }
-        if (role.includes('instructor')) {
+        if (role.includes('instructor') && !role.includes('administrator')) {
           courseinfo.owner = failsuser.useruuid // claim ownership
           courseinfo.ownerdisplayname = failsuser.displayname
         }
@@ -278,15 +308,18 @@ export class LtiHandler {
         // console.log('failscourse', failscourse)
 
         const token = {
-          course: failscourse,
+          course: { lectureuuid: failscourse.lectureuuid },
           user: failsuser,
           role: role,
           context: 'lti',
+          appversion: failscourse.appversion,
           maxrenew: 5
         } // five times 5 minutes should be enough
         const jwttoken = await this.signJwt(token)
 
-        return res.redirect(this.basefailsurl + '/' + '?token=' + jwttoken)
+        return res.redirect(
+          this.basefailsurl[failscourse.appversion] + '/' + '?token=' + jwttoken
+        )
       }
 
       // console.log("decoded token",decodedToken.payload);
@@ -423,6 +456,15 @@ export class LtiHandler {
     let title = linfo.lecturetitle
     let coursetitle = linfo.coursetitle
 
+    let appversion = lecturedoc?.appversion || 'stable'
+    if ((lecturedoc == null || !lecturedoc.appversion) && lms.course_id) {
+      const lectappdoc = await lecturescol.findOne(
+        { $and: [{ 'lms.iss': lms.iss }, { 'lms.course_id': lms.course_id }] },
+        { projection: { appversion: 1 } }
+      )
+      if (lectappdoc?.appversion) appversion = lectappdoc.appversion
+    }
+
     if (lecturedoc == null) {
       // deploy data
       const toinsert = {}
@@ -434,6 +476,7 @@ export class LtiHandler {
       if (lms.deploy_id) toinsert.lms.deploy_id = lms.deploy_id
       if (linfo.lecturetitle) toinsert.title = linfo.lecturetitle
       if (linfo.coursetitle) toinsert.coursetitle = linfo.coursetitle
+      toinsert.appversion = appversion
       lectureuuid = uuidv4()
       toinsert.uuid = lectureuuid
       if (args.owner) {
@@ -469,6 +512,8 @@ export class LtiHandler {
         toupdate.title = linfo.lecturetitle
       if (lecturedoc.coursetitle !== linfo.coursetitle)
         toupdate.coursetitle = linfo.coursetitle
+      if (!lecturedoc.appversion) lecturedoc.appversion = appversion
+
       let containsowner = true
       let isowner = false
       if (args.owner) {
@@ -507,7 +552,7 @@ export class LtiHandler {
         }
       }
     }
-    const retobj = { lectureuuid: lectureuuid }
+    const retobj = { lectureuuid, appversion }
     // if (title) retobj.title=title;
     // if (coursetitle) retobj.coursetitle=coursetitle;
 
@@ -515,27 +560,39 @@ export class LtiHandler {
   }
 
   maintenanceExpress() {
-    const secretCallback = async (req, payload, done) => {
+    const secretCallback = async (req, { header, payload }) => {
       const keyid = payload.kid
-      if (!keyid) return done(new Error('no valid kid!'))
+      if (!keyid) throw new Error('no valid kid!')
 
       const platform = this.lmslist[payload.iss]
-      if (!platform) return done(new Error('platform not registered/supported'))
-
-      const keyinfo = await got.get(platform.keyset_url).json()
+      if (!platform) throw new Error('platform not registered/supported')
+      let keyinfo
+      try {
+        keyinfo = await got.get(platform.keyset_url).json()
+      } catch (error) {
+        console.log('Key info loading problem in maintenance:', error)
+        throw new Error('cannot load key info')
+      }
       const keys = keyinfo.keys
-      if (!keys) return done(new Error('Keyset not found'))
+      if (!keys) throw new Error('Keyset not found')
 
       const jwk = keys.find((key) => {
         return key.kid === keyid
       })
-      if (!jwk) return done(new Error('key not found'))
-      done(null, jwk)
+      if (!jwk) throw new Error('key not found')
+      let key
+      try {
+        key = await Jwk.export({ jwk: jwk })
+      } catch (error) {
+        console.log('Jwk export: error', error)
+        throw new Error('Jwk key export problem')
+      }
+      return key
     }
 
     return jwtexpress({
       secret: secretCallback,
-      algorithms: ['ES512'],
+      algorithms: ['RS256', 'RS384', 'RS512'],
       requestProperty: 'token'
     })
   }
@@ -544,7 +601,8 @@ export class LtiHandler {
     const userscol = this.mongo.collection('users')
     const orquery = []
 
-    if (!req.token) res.status(401).send('malformed request')
+    if (!req.token)
+      return res.status(401).send('malformed request: token invalid or missing')
     if (
       req.body.username &&
       req.body.username.match(/^[0-9a-zA-Z._-]+$/) &&
@@ -553,16 +611,23 @@ export class LtiHandler {
       orquery.push({ 'lms.username': req.body.username })
     if (req.body.email && typeof req.body.email === 'string')
       orquery.push({ email: req.body.email })
+    // per spec lmssub is a string, even it is a number for moodle
+    if (req.body.lmssub && typeof req.body.lmssub === 'string')
+      orquery.push({ 'lms.sub': req.body.lmssub })
 
-    if (orquery.length === 0) return res.status(401).send('malformed request')
-    if (!req.token.iss) return res.status(401).send('malformed request')
+    if (orquery.length === 0)
+      return res
+        .status(401)
+        .send('malformed request: missing username or email')
+    if (!req.token.iss)
+      return res.status(401).send('malformed request: no issuer in token')
 
     try {
       /* const user = await userscol.findOne({
         $and: [{ $or: orquery }, { 'lms.iss': req.token.iss }]
       }) */ // not this is wrong, we assume that all lms share the usernames and emails with the system
       const user = await userscol.findOne({ $or: orquery })
-      if (!user) res.status(404).send('user not found')
+      if (!user) return res.status(404).send('user not found')
       if (user.uuid) res.status(200).json({ uuid: user.uuid })
       else res.status(404).send('uuid not found')
     } catch (error) {
@@ -573,7 +638,7 @@ export class LtiHandler {
 
   async handleDeleteUser(req, res) {
     if (!validate(req.body.uuid))
-      return res.status(401).send('malformed request')
+      return res.status(401).send('malformed request: missing uuid')
     const useruuid = req.body.uuid
     try {
       const userscol = this.mongo.collection('users')
@@ -597,11 +662,15 @@ export class LtiHandler {
   }
 
   async handleDeleteCourse(req, res) {
-    if (!req.token) res.status(401).send('malformed request')
-    if (!req.token.iss) return res.status(401).send('malformed request')
-    if (!req.body.courseid) return res.status(401).send('malformed request')
+    if (!req.token)
+      return res.status(401).send('malformed request: token invalid or missing')
+    if (!req.token.iss)
+      return res.status(401).send('malformed request: missing iss')
+    if (!req.body.courseid)
+      return res.status(401).send('malformed request: missing courseid')
     const courseid = Number(req.body.courseid)
-    if (Number.isNaN(courseid)) return res.status(401).send('malformed request')
+    if (Number.isNaN(courseid))
+      return res.status(401).send('malformed request: courseid not a number')
     try {
       const lecturescol = this.mongo.collection('lectures')
       const mods = await lecturescol.updateMany(
@@ -614,6 +683,40 @@ export class LtiHandler {
     } catch (error) {
       console.log('handleDeleteCourse error', error)
       return res.status(500).send('delete course error')
+    }
+  }
+
+  async handleDeleteResource(req, res) {
+    if (!req.token)
+      return res.status(401).send('malformed request: token invalid or missing')
+    if (!req.token.iss)
+      return res.status(401).send('malformed request: missing issuer')
+    if (!req.body.courseid)
+      return res.status(401).send('malformed request: missing courseid')
+    if (!req.body.resourceid)
+      return res.status(401).send('malformed request: missing resourceid')
+    const courseid = Number(req.body.courseid)
+    if (Number.isNaN(courseid))
+      return res.status(401).send('malformed request: courseid not a number')
+    const resourceid = Number(req.body.resourceid)
+    if (Number.isNaN(resourceid))
+      return res.status(401).send('malformed request: resourceid not a number')
+    try {
+      const lecturescol = this.mongo.collection('lectures')
+      const mods = await lecturescol.updateMany(
+        {
+          'lms.iss': req.token.iss,
+          'lms.course_id': courseid.toString(),
+          'lms.resource_id': resourceid.toString()
+        },
+        { $rename: { 'lms.resource_id': 'lms.resource_id_deleted' } }
+      )
+      res.status(200).json({
+        modifieddocs: mods.modifiedCount
+      })
+    } catch (error) {
+      console.log('handleDeleteResource error', error)
+      return res.status(500).send('delete resource error')
     }
   }
 }
