@@ -313,6 +313,7 @@ export class LtiHandler {
           role: role,
           context: 'lti',
           appversion: failscourse.appversion,
+          features: failscourse.features,
           maxrenew: 5
         } // five times 5 minutes should be enough
         const jwttoken = await this.signJwt(token)
@@ -457,12 +458,14 @@ export class LtiHandler {
     let coursetitle = linfo.coursetitle
 
     let appversion = lecturedoc?.appversion || 'stable'
+    let features = lecturedoc?.features || []
     if ((lecturedoc == null || !lecturedoc.appversion) && lms.course_id) {
       const lectappdoc = await lecturescol.findOne(
         { $and: [{ 'lms.iss': lms.iss }, { 'lms.course_id': lms.course_id }] },
-        { projection: { appversion: 1 } }
+        { projection: { appversion: 1, features: 1 } }
       )
       if (lectappdoc?.appversion) appversion = lectappdoc.appversion
+      if (lectappdoc?.features) features = lectappdoc.features
     }
 
     if (lecturedoc == null) {
@@ -477,6 +480,7 @@ export class LtiHandler {
       if (linfo.lecturetitle) toinsert.title = linfo.lecturetitle
       if (linfo.coursetitle) toinsert.coursetitle = linfo.coursetitle
       toinsert.appversion = appversion
+      toinsert.features = features
       lectureuuid = uuidv4()
       toinsert.uuid = lectureuuid
       if (args.owner) {
@@ -513,6 +517,7 @@ export class LtiHandler {
       if (lecturedoc.coursetitle !== linfo.coursetitle)
         toupdate.coursetitle = linfo.coursetitle
       if (!lecturedoc.appversion) lecturedoc.appversion = appversion
+      if (!lecturedoc.features) lecturedoc.features = features
 
       let containsowner = true
       let isowner = false
@@ -552,7 +557,7 @@ export class LtiHandler {
         }
       }
     }
-    const retobj = { lectureuuid, appversion }
+    const retobj = { lectureuuid, appversion, features }
     // if (title) retobj.title=title;
     // if (coursetitle) retobj.coursetitle=coursetitle;
 
