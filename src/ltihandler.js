@@ -314,8 +314,8 @@ export class LtiHandler {
           context: 'lti',
           appversion: failscourse.appversion,
           features: failscourse.features,
-          maxrenew: 5
-        } // five times 5 minutes should be enough
+          maxrenew: 22
+        } // 12 times 10 minutes should be enough
         const jwttoken = await this.signJwt(token)
 
         return res.redirect(
