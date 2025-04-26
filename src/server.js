@@ -78,7 +78,8 @@ const initServer = async () => {
       experimental: cfg.getURL('appweb', 'experimental')
     },
     coursewhitelist: cfg.courseWhitelist(),
-    onlyLearners: cfg.onlyLearners()
+    onlyLearners: cfg.onlyLearners(),
+    addAdminList: cfg.addlAdmins()
   })
 
   const app = express()

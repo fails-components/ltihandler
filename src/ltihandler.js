@@ -34,6 +34,7 @@ export class LtiHandler {
     this.basefailsurl = args.basefailsurl
     this.coursewhitelist = args.coursewhitelist
     this.onlyLearners = args.onlyLearners
+    this.addAdminList = args.addAdminList
 
     console.log('ltihandler available lms ', args.lmslist)
     if (this.onlyLearners)
@@ -296,6 +297,14 @@ export class LtiHandler {
         if (role.includes('instructor') && !role.includes('administrator')) {
           courseinfo.owner = failsuser.useruuid // claim ownership
           courseinfo.ownerdisplayname = failsuser.displayname
+        }
+        // the next is done after displayname setting, as this case should not prevent changing displaynames
+        if (
+          !role.includes('administrator') &&
+          userinfo.lmsusername &&
+          this.addAdminList.includes(userinfo.lmsusername)
+        ) {
+          role.push('administrator')
         }
 
         const failscourse = await this.identifyCreateLectureAndCourse(
