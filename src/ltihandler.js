@@ -173,14 +173,21 @@ export class LtiHandler {
           return res.status(400).send({ status: 400, error: 'redis broken' })
         }
 
-        if (
-          !jwt.verify(req.body.id_token, key, {
-            /* nonce: ADD */
+        try {
+          if (
+            !jwt.verify(req.body.id_token, key, {
+              /* nonce: ADD */
+            })
+          )
+            return res
+              .status(400)
+              .send({ status: 400, error: 'jwt verification failure' })
+        } catch (error) {
+          return res.status(400).send({
+            status: 400,
+            error: 'jwt verification failure with error:' + error
           })
-        )
-          return res
-            .status(400)
-            .send({ status: 400, error: 'jwt verification failure' })
+        }
 
         if (
           payload['https://purl.imsglobal.org/spec/lti/claim/message_type'] !==
